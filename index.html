@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" >
+<html lang="id" >
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
@@ -18,11 +18,14 @@
     integrity="sha256-o9N1j7mK3kGSw9fD3vH8hg7n53z+0ynE4g4pLtS6kQo="
     crossorigin=""
   ></script>
+  <!-- SweetAlert2 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     /* Make map fill container fully */
     #map {
       height: 100%;
       width: 100%;
+      min-height: 400px;
     }
     /* For animated line drawing */
     .red-line {
@@ -39,21 +42,29 @@
         stroke-dashoffset: 0;
       }
     }
+    /* Scrollbar hidden */
+    ::-webkit-scrollbar {
+      display:none;
+    }
+
+    body {
+      -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+    }
   </style>
 </head>
-<body class="bg-gradient-to-b from-blue-600 to-blue-900 flex flex-col items-center justify-center min-h-screen p-4" >
+<body class="bg-gradient-to-b from-blue-700 to-blue-900 flex flex-col items-center justify-center min-h-screen p-4 font-sans" >
 
-  <div class="bg-white rounded-xl shadow-lg w-full max-w-md h-[600px] max-h-[600px] flex flex-col overflow-hidden">
-    <header class="p-4 border-b border-gray-300">
-      <h1 class="text-xl font-semibold text-gray-900 text-center">Peta Arah Ke Kabah</h1>
-      <p class="text-sm mt-1 text-center text-gray-600">Lokasi Anda realtime & animasi garis merah</p>
+  <div class="bg-white rounded-xl shadow-xl w-full max-w-md h-[600px] max-h-[600px] flex flex-col overflow-hidden">
+    <header class="p-4 border-b border-gray-300 bg-gradient-to-r from-blue-600 to-blue-400 text-white">
+      <h1 class="text-xl font-extrabold text-center tracking-wide">Peta Arah Ke Kabah</h1>
+      <p class="text-sm mt-1 text-center opacity-80 font-light">Lokasi Anda real-time & animasi garis merah</p>
     </header>
 
     <main class="flex-grow relative">
-      <div id="map" class="w-full h-full"></div>
+      <div id="map" class="w-full h-full rounded-b-xl shadow-inner"></div>
     </main>
 
-    <footer class="p-3 border-t border-gray-300 text-center text-gray-700 text-sm">
+    <footer class="p-3 border-t border-gray-300 text-center text-gray-700 text-sm bg-gradient-to-r from-blue-100 to-blue-50 font-light select-none">
       Pastikan izinkan akses lokasi untuk pengambilan lokasi realtime.
     </footer>
   </div>
@@ -77,8 +88,14 @@
 
   // Marker for Kabah
   const kabahMarker = L.marker(kabahLatLng, {
-    title: "Kabah"
-  }).addTo(map).bindPopup("Kabah");
+    title: "Kabah",
+    icon: L.icon({
+      iconUrl: "https://upload.wikimedia.org/wikipedia/commons/e/e7/Mosque_icon.png",
+      iconSize: [40, 40],
+      iconAnchor: [20, 40],
+      popupAnchor: [0, -36],
+    }),
+  }).addTo(map).bindPopup("<b>Kabah</b>");
 
   // Marker for user location
   let userMarker = null;
@@ -86,22 +103,40 @@
   // Polyline for red line animated from user -> Kabah
   let line = null;
 
-  // This function animates the polyline's drawing by manipulating the stroke dashoffset
-  // Leaflet doesn't support SVG stroke dashoffset on polylines directly,
-  // but we can manipulate SVG path directly.
+  // Animate polyline drawing by SVG manipulation
   function animateLine(line) {
     const path = line._path;
     if (!path) return;
-
     const length = path.getTotalLength();
     path.style.strokeDasharray = length;
     path.style.strokeDashoffset = length;
     path.style.transition = 'stroke-dashoffset 2s ease-out';
-    // Trigger animation
     setTimeout(() => {
       path.style.strokeDashoffset = '0';
     }, 50);
   }
+
+  // Haversine formula to calculate distance in meters between 2 latlng points
+  function getDistanceMeters(lat1, lng1, lat2, lng2) {
+    const R = 6371000; // Earth radius in meters
+    const toRad = x => (x * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  // Show welcome welcome message on page load
+  Swal.fire({
+    icon: 'info',
+    title: 'Selamat datang!',
+    text: 'Peta mengarah ke Kabah dengan lokasi realtime Anda.',
+    confirmButtonText: 'Mulai'
+  });
 
   // Update user position and redraw line
   function updateUserPosition(position) {
@@ -131,7 +166,6 @@
       color: 'red',
       weight: 3,
       opacity: 0.85,
-      dashArray: '', // clearing dash array for animation
     }).addTo(map);
 
     // Animate the line drawing
@@ -144,23 +178,42 @@
       padding: [40, 40],
       animate: true,
     });
+
+    // Calculate distance to Kabah and alert if ≤ 1 km
+    const distMeters = getDistanceMeters(latlng[0], latlng[1], kabahLatLng[0], kabahLatLng[1]);
+    if (distMeters <= 1000) {
+      Swal.fire({
+        icon: 'success',
+        title: 'Kabah di depan Anda!',
+        text: `Jarak Anda ke Kabah hanya ${Math.round(distMeters)} meter.`,
+        timer: 5000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+      });
+    }
   }
 
   function handleError(error) {
-    alert("Error mendapatkan lokasi: " + error.message + "\nMohon izinkan akses lokasi dan refresh halaman.");
+    Swal.fire({
+      icon: 'error',
+      title: 'Kesalahan mendapatkan lokasi',
+      text: error.message + "\nMohon izinkan akses lokasi dan refresh halaman.",
+    });
   }
 
   if (navigator.geolocation) {
     navigator.geolocation.watchPosition(updateUserPosition, handleError, {
       enableHighAccuracy: true,
       maximumAge: 0,
-      timeout: 10000,
+      timeout: 15000,
     });
   } else {
-    alert("Geolocation tidak didukung oleh browser Anda.");
+    Swal.fire({
+      icon: 'warning',
+      title: 'Geolocation tidak didukung',
+      text: 'Browser Anda tidak mendukung Geolocation.',
+    });
   }
 </script>
 </body>
 </html>
-
-  
