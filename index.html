@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Map to Kaaba - Real-time Location</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Leaflet CSS & JS CDN -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-xwE/NgQ0pKAk5jv7gsT4yZChZjklckJsIYDNf+NS+gk="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-o9N1j7mK3kGSw9fD3vH8hg7n53z+0ynE4g4pLtS6kQo="
+    crossorigin=""
+  ></script>
+  <style>
+    /* Make map fill container fully */
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+    /* For animated line drawing */
+    .red-line {
+      stroke: red;
+      stroke-width: 3;
+      fill: none;
+      stroke-dasharray: 1000;
+      stroke-dashoffset: 1000;
+      animation: drawLine 2s forwards;
+    }
+
+    @keyframes drawLine {
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-blue-600 to-blue-900 flex flex-col items-center justify-center min-h-screen p-4" >
+
+  <div class="bg-white rounded-xl shadow-lg w-full max-w-md h-[600px] max-h-[600px] flex flex-col overflow-hidden">
+    <header class="p-4 border-b border-gray-300">
+      <h1 class="text-xl font-semibold text-gray-900 text-center">Peta Arah Ke Kabah</h1>
+      <p class="text-sm mt-1 text-center text-gray-600">Lokasi Anda realtime & animasi garis merah</p>
+    </header>
+
+    <main class="flex-grow relative">
+      <div id="map" class="w-full h-full"></div>
+    </main>
+
+    <footer class="p-3 border-t border-gray-300 text-center text-gray-700 text-sm">
+      Pastikan izinkan akses lokasi untuk pengambilan lokasi realtime.
+    </footer>
+  </div>
+
+<script>
+  // Coordinates of the Kaaba
+  const kabahLatLng = [21.4225, 39.8262];
+
+  // Initialize map centered roughly on Kaaba initially
+  const map = L.map('map', {
+    zoomControl: false,
+    attributionControl: false,
+    dragging: true,
+    tap: true,
+  }).setView(kabahLatLng, 5);
+
+  // Add OpenStreetMap tiles
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+  }).addTo(map);
+
+  // Marker for Kabah
+  const kabahMarker = L.marker(kabahLatLng, {
+    title: "Kabah"
+  }).addTo(map).bindPopup("Kabah");
+
+  // Marker for user location
+  let userMarker = null;
+
+  // Polyline for red line animated from user -> Kabah
+  let line = null;
+
+  // This function animates the polyline's drawing by manipulating the stroke dashoffset
+  // Leaflet doesn't support SVG stroke dashoffset on polylines directly,
+  // but we can manipulate SVG path directly.
+  function animateLine(line) {
+    const path = line._path;
+    if (!path) return;
+
+    const length = path.getTotalLength();
+    path.style.strokeDasharray = length;
+    path.style.strokeDashoffset = length;
+    path.style.transition = 'stroke-dashoffset 2s ease-out';
+    // Trigger animation
+    setTimeout(() => {
+      path.style.strokeDashoffset = '0';
+    }, 50);
+  }
+
+  // Update user position and redraw line
+  function updateUserPosition(position) {
+    const latlng = [position.coords.latitude, position.coords.longitude];
+
+    if (!userMarker) {
+      userMarker = L.marker(latlng, {
+        title: 'Lokasi Anda',
+        icon: L.icon({
+          iconUrl: 'https://cdn-icons-png.flaticon.com/512/64/64113.png',
+          iconSize: [32, 32],
+          iconAnchor: [16, 32],
+        }),
+        alt: 'Lokasi Anda',
+      }).addTo(map).bindPopup("Lokasi Anda");
+    } else {
+      userMarker.setLatLng(latlng);
+    }
+
+    // Remove old line first
+    if (line) {
+      map.removeLayer(line);
+    }
+
+    // Draw straight red line from user to Kabah
+    line = L.polyline([latlng, kabahLatLng], {
+      color: 'red',
+      weight: 3,
+      opacity: 0.85,
+      dashArray: '', // clearing dash array for animation
+    }).addTo(map);
+
+    // Animate the line drawing
+    animateLine(line);
+
+    // Adjust map view to show both points with padding, maxZoom 15
+    const group = new L.featureGroup([userMarker, kabahMarker]);
+    map.fitBounds(group.getBounds(), {
+      maxZoom: 15,
+      padding: [40, 40],
+      animate: true,
+    });
+  }
+
+  function handleError(error) {
+    alert("Error mendapatkan lokasi: " + error.message + "\nMohon izinkan akses lokasi dan refresh halaman.");
+  }
+
+  if (navigator.geolocation) {
+    navigator.geolocation.watchPosition(updateUserPosition, handleError, {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 10000,
+    });
+  } else {
+    alert("Geolocation tidak didukung oleh browser Anda.");
+  }
+</script>
+</body>
+</html>
+
+  
